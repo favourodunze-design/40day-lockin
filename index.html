@@ -207,6 +207,7 @@ let syncPanelOpen = false;
 let pushTimer = null;
 let pollTimer = null;
 let supabaseClient = null;
+let autoConfigured = false; // true when config came from /api/config (Vercel env vars)
 
 function getSupabaseClient(){
   if(!syncConfig.supabaseUrl || !syncConfig.supabaseKey) return null;
@@ -220,7 +221,7 @@ function getSupabaseClient(){
 
 function uid(){ return Math.random().toString(36).slice(2,9); }
 
-function load(){
+async function load(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     if(raw) state = JSON.parse(raw);
@@ -239,6 +240,29 @@ function load(){
     const raw3 = localStorage.getItem(SYNC_CONFIG_KEY);
     if(raw3) syncConfig = JSON.parse(raw3);
   }catch(e){ console.error('load failed', e); }
+
+  // If this deployment has Supabase env vars set (Vercel), /api/config
+  // hands back the connection details so this device auto-syncs without
+  // going through the manual "Set up sync" flow. Falls back silently to
+  // whatever's in localStorage if the route 404s or isn't reachable
+  // (e.g. opened as a local file, or deployed without env vars).
+  try{
+    const res = await fetch('/api/config');
+    if(res.ok){
+      const cfg = await res.json();
+      if(cfg && cfg.configured){
+        syncConfig = {
+          supabaseUrl: cfg.supabaseUrl,
+          supabaseKey: cfg.supabaseKey,
+          syncId: cfg.syncId,
+          lastSyncedAt: syncConfig.lastSyncedAt || null
+        };
+        autoConfigured = true;
+        supabaseClient = null;
+        saveSyncConfig();
+      }
+    }
+  }catch(e){ /* no /api route available — that's fine, manual sync still works */ }
 
   render();
 
@@ -624,7 +648,19 @@ function render(){
 
   const syncPanel = !syncPanelOpen ? '' : `
     <div class="sync-panel">
-      ${!isConnected ? `
+      ${autoConfigured ? `
+        <p class="sync-copy">This deployment auto-syncs via Supabase environment variables — <b>every device</b> that opens this site connects to the same tracker automatically. No manual setup needed here.</p>
+        <div class="sync-block">
+          <div class="sync-block-title">Sync code (server-configured)</div>
+          <div class="sync-id-row">
+            <code id="syncIdDisplay">${syncConfig.syncId}</code>
+          </div>
+          <div style="font-size:11.5px;color:var(--paper-dim);margin-top:4px;">Last synced: ${lastSync}</div>
+        </div>
+        <div class="controls" style="padding:0;margin:4px 0 0;">
+          <button class="btn ghost" onclick="pullFromCloud(false)">Sync now</button>
+        </div>
+      ` : !isConnected ? `
         <p class="sync-copy">Connect a free <a href="https://supabase.com" target="_blank" rel="noopener">Supabase</a> project to sync this tracker across your devices. Create a project, run the setup SQL from the README, then copy your <b>Project URL</b> and <b>anon public key</b> from Project Settings → API.</p>
 
         <div class="sync-block">

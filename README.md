@@ -83,13 +83,44 @@ Both devices now read/write the same `lockin_sync` row every ~25s (and
 immediately after any change), same as the original jsonbin.io flow but
 backed by your own Supabase project.
 
+## Auto-sync every device via Vercel environment variables (recommended)
+
+If you don't want to manually "connect" each new device through the app's
+sync panel, set the Supabase connection as Vercel env vars instead. The app
+calls `/api/config` (a tiny serverless function in `api/config.js`) on load;
+if it finds these vars, it connects automatically — no manual step, on any
+device that opens the site.
+
+**Reuse your existing sync code so your current data carries over:** open
+the app you already connected, click the sync toggle, and copy the code
+shown under "Sync code". That's the value for `SUPABASE_SYNC_ID` below —
+don't generate a new one, or you'll start from an empty tracker.
+
+1. In the Vercel dashboard: your project → **Settings → Environment
+   Variables**. Add:
+   - `SUPABASE_URL` — your Project URL (`https://xxxx.supabase.co`)
+   - `SUPABASE_ANON_KEY` — your anon public key
+   - `SUPABASE_SYNC_ID` — the sync code you copied above
+2. Redeploy (Vercel → Deployments → ⋯ → **Redeploy**, or push any commit —
+   env var changes don't apply until the next deploy).
+3. Open the live site. The sync badge should already read "Sync connected"
+   with no button-pressing required. Opening it on any other device/browser
+   does the same automatically.
+
+Note: the anon key is meant to be public-safe (it's what RLS policies are
+for), so this isn't storing a secret — it's just removing the manual
+copy/paste step for every device. The app's "Set up sync" panel still shows
+the sync code (in case you ever need it), but the create/connect/disconnect
+buttons are hidden since the environment variables are now the source of
+truth.
+
 ## Notes
-- No `npm install` / build step — Supabase is loaded from a CDN
-  (`@supabase/supabase-js`) at runtime.
+- No `npm install` / build step for the page itself — Supabase is loaded
+  from a CDN (`@supabase/supabase-js`) at runtime. `api/config.js` is a
+  small Vercel serverless function (auto-detected, no build step needed
+  for it either).
 - Export/Import backup buttons still work regardless of sync status.
-- I can't create the Vercel or Supabase accounts for you (no network
-  access to those services from here, and they need your login) — the
-  steps above are copy-pasteable and take a few minutes end-to-end.
-
-
-  
+- I can't create the Vercel or Supabase accounts for you, or set env vars
+  in your Vercel dashboard (no network access to those services from here,
+  and they need your login) — the steps above are copy-pasteable and take
+  a few minutes end-to-end.
