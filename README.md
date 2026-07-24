@@ -90,3 +90,6 @@ backed by your own Supabase project.
 - I can't create the Vercel or Supabase accounts for you (no network
   access to those services from here, and they need your login) — the
   steps above are copy-pasteable and take a few minutes end-to-end.
+
+
+  
